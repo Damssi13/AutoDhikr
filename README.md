@@ -33,3 +33,4 @@ Then open [http://localhost:3000](http://localhost:3000).
 - `app/page.tsx` — homepage shell
 - `components/Counter.tsx` — counter logic and UI
 - `app/layout.tsx` — app metadata and root layout
+

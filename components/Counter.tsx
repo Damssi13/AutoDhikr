@@ -80,6 +80,7 @@ export default function Counter() {
 	const recognitionRef = useRef<SpeechRecognition | null>(null);
 	const autoRestartRef = useRef(false);
 	const dhikrRef = useRef(DEFAULT_DHIKR);
+	const lastCountTimeRef = useRef(0);
 
 	useEffect(() => {
 		dhikrRef.current = dhikr;
@@ -143,15 +144,21 @@ export default function Counter() {
 				const result = event.results[i];
 				const transcript = result[0]?.transcript ?? "";
 
+				// Only process final results to avoid counting interim results
 				if (result.isFinal) {
 					finalText += `${transcript} `;
 				}
 			}
 
 			if (finalText.trim()) {
-				const occurrences = countMatches(finalText, dhikrRef.current);
-				if (occurrences > 0) {
-					setCount((value) => value + occurrences);
+				// Add 500ms cooldown to prevent double-counting the same phrase
+				const now = Date.now();
+				if (now - lastCountTimeRef.current >= 500) {
+					const occurrences = countMatches(finalText, dhikrRef.current);
+					if (occurrences > 0) {
+						setCount((value) => value + occurrences);
+						lastCountTimeRef.current = now;
+					}
 				}
 			}
 		};
@@ -165,6 +172,7 @@ export default function Counter() {
 
 		recognition.onend = () => {
 			setIsListening(false);
+			lastCountTimeRef.current = 0; // Reset cooldown when stopped
 			if (autoRestartRef.current) {
 				try {
 					recognition.start();
