@@ -6,16 +6,18 @@ const TARGET_OPTIONS = [33, 99, 100] as const;
 
 type SpeechPace = "slow" | "normal" | "fast";
 
+type MatchMode = "strict" | "balanced" | "lenient";
+
 const PACE_OPTIONS: Array<{ value: SpeechPace; label: string }> = [
 	{ value: "slow", label: "بطيء" },
 	{ value: "normal", label: "متوسط" },
 	{ value: "fast", label: "سريع" },
 ];
 
-const PACE_SETTINGS: Record<SpeechPace, { duplicateMs: number; minGapMs: number }> = {
-	slow: { duplicateMs: 2400, minGapMs: 1000 },
-	normal: { duplicateMs: 1800, minGapMs: 650 },
-	fast: { duplicateMs: 1200, minGapMs: 420 },
+const PACE_SETTINGS: Record<SpeechPace, { duplicateMs: number; minGapMs: number; matchMode: MatchMode }> = {
+	slow: { duplicateMs: 3200, minGapMs: 1250, matchMode: "strict" },
+	normal: { duplicateMs: 1800, minGapMs: 650, matchMode: "balanced" },
+	fast: { duplicateMs: 800, minGapMs: 260, matchMode: "lenient" },
 };
 
 type StoredState = {
@@ -70,12 +72,13 @@ function levenshteinDistance(a: string, b: string) {
 	return prev[b.length];
 }
 
-function isDhikrMatch(transcript: string, dhikr: string) {
+function isDhikrMatch(transcript: string, dhikr: string, mode: MatchMode) {
 	const normalizedTranscript = normalizeText(transcript);
 	const normalizedDhikr = normalizeText(dhikr);
 
 	if (!normalizedTranscript || !normalizedDhikr) return false;
 	if (normalizedTranscript === normalizedDhikr) return true;
+	if (mode === "strict") return false;
 
 	const transcriptWords = splitWords(normalizedTranscript);
 	const dhikrWords = splitWords(normalizedDhikr);
@@ -84,7 +87,14 @@ function isDhikrMatch(transcript: string, dhikr: string) {
 	if (transcriptWords.length !== dhikrWords.length) return false;
 
 	const distance = levenshteinDistance(normalizedTranscript, normalizedDhikr);
-	const maxDistance = normalizedDhikr.length <= 10 ? 1 : 2;
+	const maxDistance =
+		mode === "lenient"
+			? normalizedDhikr.length <= 10
+				? 2
+				: 3
+			: normalizedDhikr.length <= 10
+				? 1
+				: 2;
 	return distance <= maxDistance;
 }
 
@@ -233,7 +243,7 @@ export default function Counter() {
 
 				const normalizedTranscript = normalizeText(transcript);
 				if (!normalizedTranscript || !normalizedDhikr) continue;
-				if (!isDhikrMatch(normalizedTranscript, normalizedDhikr)) continue;
+				if (!isDhikrMatch(normalizedTranscript, normalizedDhikr, paceSettings.matchMode)) continue;
 
 				const now = Date.now();
 				const isRapidDuplicate =
@@ -432,6 +442,9 @@ export default function Counter() {
 						))}
 					</div>
 				</div>
+				<p className="text-[11px] text-amber-100/60">
+					فلترة التكرار: {PACE_SETTINGS[speechPace].duplicateMs}ms • أقل فاصل: {PACE_SETTINGS[speechPace].minGapMs}ms
+				</p>
 				{heardText ? (
 					<p className="rounded-xl border border-amber-100/10 bg-black/20 px-3 py-2 text-xs leading-6 text-amber-50/85">
 						<span className="font-medium text-amber-100">ما سمعه التطبيق:</span> {heardText}
