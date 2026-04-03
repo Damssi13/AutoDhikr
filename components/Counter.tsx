@@ -81,10 +81,10 @@ export default function Counter() {
 	const recognitionRef = useRef<SpeechRecognition | null>(null);
 	const autoRestartRef = useRef(false);
 	const dhikrRef = useRef(DEFAULT_DHIKR);
-	const countedThisSessionRef = useRef(false);
 	const processedFinalIndexesRef = useRef<Set<number>>(new Set());
 	const lastFinalTranscriptRef = useRef("");
 	const lastFinalTranscriptAtRef = useRef(0);
+	const lastAcceptedAtRef = useRef(0);
 
 	useEffect(() => {
 		dhikrRef.current = dhikr;
@@ -142,10 +142,6 @@ export default function Counter() {
 		recognition.lang = "ar-SA";
 
 		recognition.onresult = (event) => {
-			if (countedThisSessionRef.current) {
-				return;
-			}
-
 			let incrementBy = 0;
 			let displayText = "";
 			const normalizedDhikr = normalizeText(dhikrRef.current);
@@ -171,19 +167,21 @@ export default function Counter() {
 				const now = Date.now();
 				const isRapidDuplicate =
 					normalizedTranscript === lastFinalTranscriptRef.current &&
-					now - lastFinalTranscriptAtRef.current < 900;
+					now - lastFinalTranscriptAtRef.current < 1800;
 				if (isRapidDuplicate) continue;
+
+				const isTooSoonAfterLastCount = now - lastAcceptedAtRef.current < 650;
+				if (isTooSoonAfterLastCount) continue;
 
 				lastFinalTranscriptRef.current = normalizedTranscript;
 				lastFinalTranscriptAtRef.current = now;
+				lastAcceptedAtRef.current = now;
 
 				incrementBy += 1;
 			}
 
 			if (incrementBy > 0) {
 				setCount((value) => value + incrementBy);
-				countedThisSessionRef.current = true;
-				recognition.stop();
 			}
 
 			setHeardText(displayText.trim());
@@ -199,7 +197,6 @@ export default function Counter() {
 		recognition.onend = () => {
 			setIsListening(false);
 			processedFinalIndexesRef.current.clear();
-			countedThisSessionRef.current = false;
 			if (autoRestartRef.current) {
 				try {
 					recognition.start();
