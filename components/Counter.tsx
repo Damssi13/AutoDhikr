@@ -190,8 +190,6 @@ export default function Counter() {
 		recognition.onend = () => {
 			setIsListening(false);
 			processedFinalIndexesRef.current.clear();
-			lastFinalTranscriptRef.current = "";
-			lastFinalTranscriptAtRef.current = 0;
 			if (autoRestartRef.current) {
 				try {
 					recognition.start();
