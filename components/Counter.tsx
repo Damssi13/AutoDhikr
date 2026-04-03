@@ -162,7 +162,7 @@ export default function Counter() {
 
 				const normalizedTranscript = normalizeText(transcript);
 				if (!normalizedTranscript || !normalizedDhikr) continue;
-				if (!normalizedTranscript.includes(normalizedDhikr)) continue;
+				if (normalizedTranscript !== normalizedDhikr) continue;
 
 				const now = Date.now();
 				const isRapidDuplicate =
