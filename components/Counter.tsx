@@ -80,7 +80,9 @@ export default function Counter() {
 	const recognitionRef = useRef<SpeechRecognition | null>(null);
 	const autoRestartRef = useRef(false);
 	const dhikrRef = useRef(DEFAULT_DHIKR);
-	const lastCountTimeRef = useRef(0);
+	const processedFinalIndexesRef = useRef<Set<number>>(new Set());
+	const lastFinalTranscriptRef = useRef("");
+	const lastFinalTranscriptAtRef = useRef(0);
 
 	useEffect(() => {
 		dhikrRef.current = dhikr;
@@ -138,28 +140,35 @@ export default function Counter() {
 		recognition.lang = "ar-SA";
 
 		recognition.onresult = (event) => {
-			let finalText = "";
+			let incrementBy = 0;
 
 			for (let i = event.resultIndex; i < event.results.length; i += 1) {
 				const result = event.results[i];
-				const transcript = result[0]?.transcript ?? "";
+				if (!result.isFinal) continue;
 
-				// Only process final results to avoid counting interim results
-				if (result.isFinal) {
-					finalText += `${transcript} `;
+				if (processedFinalIndexesRef.current.has(i)) {
+					continue;
 				}
+				processedFinalIndexesRef.current.add(i);
+
+				const transcript = result[0]?.transcript ?? "";
+				const normalizedTranscript = normalizeText(transcript);
+				if (!normalizedTranscript) continue;
+
+				const now = Date.now();
+				const isRapidDuplicate =
+					normalizedTranscript === lastFinalTranscriptRef.current &&
+					now - lastFinalTranscriptAtRef.current < 900;
+				if (isRapidDuplicate) continue;
+
+				lastFinalTranscriptRef.current = normalizedTranscript;
+				lastFinalTranscriptAtRef.current = now;
+
+				incrementBy += countMatches(normalizedTranscript, dhikrRef.current);
 			}
 
-			if (finalText.trim()) {
-				// Add 500ms cooldown to prevent double-counting the same phrase
-				const now = Date.now();
-				if (now - lastCountTimeRef.current >= 500) {
-					const occurrences = countMatches(finalText, dhikrRef.current);
-					if (occurrences > 0) {
-						setCount((value) => value + occurrences);
-						lastCountTimeRef.current = now;
-					}
-				}
+			if (incrementBy > 0) {
+				setCount((value) => value + incrementBy);
 			}
 		};
 
@@ -172,7 +181,9 @@ export default function Counter() {
 
 		recognition.onend = () => {
 			setIsListening(false);
-			lastCountTimeRef.current = 0; // Reset cooldown when stopped
+			processedFinalIndexesRef.current.clear();
+			lastFinalTranscriptRef.current = "";
+			lastFinalTranscriptAtRef.current = 0;
 			if (autoRestartRef.current) {
 				try {
 					recognition.start();
@@ -235,6 +246,9 @@ export default function Counter() {
 
 		setSpeechError("");
 		autoRestartRef.current = true;
+		processedFinalIndexesRef.current.clear();
+		lastFinalTranscriptRef.current = "";
+		lastFinalTranscriptAtRef.current = 0;
 		recognitionRef.current.lang = "ar-SA";
 
 		try {
