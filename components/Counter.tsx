@@ -143,6 +143,7 @@ export default function Counter() {
 		recognition.onresult = (event) => {
 			let incrementBy = 0;
 			let displayText = "";
+			const normalizedDhikr = normalizeText(dhikrRef.current);
 
 			for (let i = event.resultIndex; i < event.results.length; i += 1) {
 				const result = event.results[i];
@@ -159,7 +160,8 @@ export default function Counter() {
 				processedFinalIndexesRef.current.add(i);
 
 				const normalizedTranscript = normalizeText(transcript);
-				if (!normalizedTranscript) continue;
+				if (!normalizedTranscript || !normalizedDhikr) continue;
+				if (!normalizedTranscript.includes(normalizedDhikr)) continue;
 
 				const now = Date.now();
 				const isRapidDuplicate =
@@ -170,7 +172,7 @@ export default function Counter() {
 				lastFinalTranscriptRef.current = normalizedTranscript;
 				lastFinalTranscriptAtRef.current = now;
 
-				incrementBy += countMatches(normalizedTranscript, dhikrRef.current);
+				incrementBy += 1;
 			}
 
 			if (incrementBy > 0) {
