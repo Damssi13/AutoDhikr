@@ -31,28 +31,6 @@ function normalizeText(value: string) {
 		.trim();
 }
 
-function countMatches(text: string, phrase: string) {
-	const normalizedText = normalizeText(text);
-	const normalizedPhrase = normalizeText(phrase);
-
-	if (!normalizedText || !normalizedPhrase) return 0;
-
-	const haystack = ` ${normalizedText} `;
-	const needle = ` ${normalizedPhrase} `;
-
-	let total = 0;
-	let start = 0;
-
-	while (start < haystack.length) {
-		const index = haystack.indexOf(needle, start);
-		if (index === -1) break;
-		total += 1;
-		start = index + needle.length;
-	}
-
-	return total;
-}
-
 function getSpeechErrorMessage(error: string) {
 	switch (error) {
 		case "no-speech":
@@ -106,9 +84,7 @@ export default function Counter() {
 
 		try {
 			const raw = window.localStorage.getItem(STORAGE_KEY);
-			if (!raw) {
-				setIsHydrated(true);
-			} else {
+			if (raw) {
 				const parsed = JSON.parse(raw) as Partial<StoredState>;
 
 				if (typeof parsed.count === "number" && parsed.count >= 0) {
@@ -127,7 +103,6 @@ export default function Counter() {
 						setDhikr(DEFAULT_DHIKR);
 					}
 				}
-
 			}
 		} catch {
 			// ignore corrupted storage
