@@ -78,7 +78,6 @@ export default function Counter() {
 	const [speechSupported, setSpeechSupported] = useState(true);
 	const [isListening, setIsListening] = useState(false);
 	const [speechError, setSpeechError] = useState<string>("");
-	const [heardText, setHeardText] = useState("");
 	const [isHydrated, setIsHydrated] = useState(false);
 	const recognitionRef = useRef<SpeechRecognition | null>(null);
 	const autoRestartRef = useRef(false);
@@ -145,15 +144,11 @@ export default function Counter() {
 
 		recognition.onresult = (event) => {
 			let incrementBy = 0;
-			let displayText = "";
 			const normalizedDhikr = normalizeText(dhikrRef.current);
 
 			for (let i = event.resultIndex; i < event.results.length; i += 1) {
 				const result = event.results[i];
 				const transcript = result[0]?.transcript ?? "";
-				if (transcript.trim()) {
-					displayText += `${transcript} `;
-				}
 
 				if (!result.isFinal) continue;
 
@@ -185,8 +180,6 @@ export default function Counter() {
 			if (incrementBy > 0) {
 				setCount((value) => value + incrementBy);
 			}
-
-			setHeardText(displayText.trim());
 		};
 
 		recognition.onerror = (event) => {
@@ -260,7 +253,6 @@ export default function Counter() {
 		}
 
 		setSpeechError("");
-		setHeardText("");
 		autoRestartRef.current = true;
 		processedFinalIndexesRef.current.clear();
 		lastFinalTranscriptRef.current = "";
@@ -344,11 +336,6 @@ export default function Counter() {
 				<p className="text-xs text-amber-100/70">
 					{isListening ? "جاري الاستماع..." : "متوقف"}
 				</p>
-				{heardText ? (
-					<p className="rounded-xl border border-amber-100/10 bg-black/20 px-3 py-2 text-xs leading-6 text-amber-50/85">
-						<span className="font-medium text-amber-100">ما سمعه التطبيق:</span> {heardText}
-					</p>
-				) : null}
 				{speechError ? <p className="text-xs text-red-300">{speechError}</p> : null}
 			</div>
 
