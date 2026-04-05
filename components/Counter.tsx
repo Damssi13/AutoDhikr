@@ -4,27 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 const TARGET_OPTIONS = [33, 99, 100] as const;
 
-type SpeechPace = "slow" | "normal" | "fast";
-
-type MatchMode = "strict" | "balanced" | "lenient";
-
-const PACE_OPTIONS: Array<{ value: SpeechPace; label: string }> = [
-	{ value: "slow", label: "بطيء" },
-	{ value: "normal", label: "متوسط" },
-	{ value: "fast", label: "سريع" },
-];
-
-const PACE_SETTINGS: Record<SpeechPace, { duplicateMs: number; minGapMs: number; matchMode: MatchMode }> = {
-	slow: { duplicateMs: 3200, minGapMs: 1250, matchMode: "strict" },
-	normal: { duplicateMs: 1800, minGapMs: 650, matchMode: "balanced" },
-	fast: { duplicateMs: 800, minGapMs: 260, matchMode: "lenient" },
-};
-
 type StoredState = {
 	count: number;
 	target: number;
 	dhikr: string;
-	pace: SpeechPace;
 };
 
 const STORAGE_KEY = "dhikr-counter-state";
@@ -41,61 +24,10 @@ function normalizeText(value: string) {
 		.toLowerCase()
 		.normalize("NFKC")
 		.replace(/[أإآٱ]/g, "ا")
-		.replace(/ى/g, "ي")
 		.replace(/[\u064B-\u065F\u0670]/g, "")
 		.replace(/[^\p{L}\p{N}\s]/gu, " ")
 		.replace(/\s+/g, " ")
 		.trim();
-}
-
-function splitWords(value: string) {
-	return value.split(" ").filter(Boolean);
-}
-
-function levenshteinDistance(a: string, b: string) {
-	if (a === b) return 0;
-	if (!a.length) return b.length;
-	if (!b.length) return a.length;
-
-	const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-	const curr = new Array<number>(b.length + 1);
-
-	for (let i = 1; i <= a.length; i += 1) {
-		curr[0] = i;
-		for (let j = 1; j <= b.length; j += 1) {
-			const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-			curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
-		}
-		for (let j = 0; j <= b.length; j += 1) prev[j] = curr[j];
-	}
-
-	return prev[b.length];
-}
-
-function isDhikrMatch(transcript: string, dhikr: string, mode: MatchMode) {
-	const normalizedTranscript = normalizeText(transcript);
-	const normalizedDhikr = normalizeText(dhikr);
-
-	if (!normalizedTranscript || !normalizedDhikr) return false;
-	if (normalizedTranscript === normalizedDhikr) return true;
-	if (mode === "strict") return false;
-
-	const transcriptWords = splitWords(normalizedTranscript);
-	const dhikrWords = splitWords(normalizedDhikr);
-
-	// Reject added or missing words (e.g., "سبحان الله وبحمده" when target is "سبحان الله")
-	if (transcriptWords.length !== dhikrWords.length) return false;
-
-	const distance = levenshteinDistance(normalizedTranscript, normalizedDhikr);
-	const maxDistance =
-		mode === "lenient"
-			? normalizedDhikr.length <= 10
-				? 2
-				: 3
-			: normalizedDhikr.length <= 10
-				? 1
-				: 2;
-	return distance <= maxDistance;
 }
 
 function countMatches(text: string, phrase: string) {
@@ -146,12 +78,10 @@ export default function Counter() {
 	const [isListening, setIsListening] = useState(false);
 	const [speechError, setSpeechError] = useState<string>("");
 	const [heardText, setHeardText] = useState("");
-	const [speechPace, setSpeechPace] = useState<SpeechPace>("normal");
 	const [isHydrated, setIsHydrated] = useState(false);
 	const recognitionRef = useRef<SpeechRecognition | null>(null);
 	const autoRestartRef = useRef(false);
 	const dhikrRef = useRef(DEFAULT_DHIKR);
-	const speechPaceRef = useRef<SpeechPace>("normal");
 	const processedFinalIndexesRef = useRef<Set<number>>(new Set());
 	const lastFinalTranscriptRef = useRef("");
 	const lastFinalTranscriptAtRef = useRef(0);
@@ -160,10 +90,6 @@ export default function Counter() {
 	useEffect(() => {
 		dhikrRef.current = dhikr;
 	}, [dhikr]);
-
-	useEffect(() => {
-		speechPaceRef.current = speechPace;
-	}, [speechPace]);
 
 	useEffect(() => {
 		const win = window as Window & {
@@ -202,10 +128,6 @@ export default function Counter() {
 					}
 				}
 
-				if (parsed.pace === "slow" || parsed.pace === "normal" || parsed.pace === "fast") {
-					setSpeechPace(parsed.pace);
-				}
-
 			}
 		} catch {
 			// ignore corrupted storage
@@ -224,8 +146,6 @@ export default function Counter() {
 			let incrementBy = 0;
 			let displayText = "";
 			const normalizedDhikr = normalizeText(dhikrRef.current);
-			const pace = speechPaceRef.current;
-			const paceSettings = PACE_SETTINGS[pace];
 
 			for (let i = event.resultIndex; i < event.results.length; i += 1) {
 				const result = event.results[i];
@@ -243,15 +163,15 @@ export default function Counter() {
 
 				const normalizedTranscript = normalizeText(transcript);
 				if (!normalizedTranscript || !normalizedDhikr) continue;
-				if (!isDhikrMatch(normalizedTranscript, normalizedDhikr, paceSettings.matchMode)) continue;
+				if (!normalizedTranscript.includes(normalizedDhikr)) continue;
 
 				const now = Date.now();
 				const isRapidDuplicate =
 					normalizedTranscript === lastFinalTranscriptRef.current &&
-					now - lastFinalTranscriptAtRef.current < paceSettings.duplicateMs;
+					now - lastFinalTranscriptAtRef.current < 1800;
 				if (isRapidDuplicate) continue;
 
-				const isTooSoonAfterLastCount = now - lastAcceptedAtRef.current < paceSettings.minGapMs;
+				const isTooSoonAfterLastCount = now - lastAcceptedAtRef.current < 650;
 				if (isTooSoonAfterLastCount) continue;
 
 				lastFinalTranscriptRef.current = normalizedTranscript;
@@ -304,9 +224,9 @@ export default function Counter() {
 	useEffect(() => {
 		if (!isHydrated) return;
 
-		const data: StoredState = { count, target, dhikr, pace: speechPace };
+		const data: StoredState = { count, target, dhikr };
 		window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-	}, [count, target, dhikr, speechPace, isHydrated]);
+	}, [count, target, dhikr, isHydrated]);
 
 	const remaining = Math.max(target - count, 0);
 	const progress = useMemo(() => {
@@ -422,28 +342,6 @@ export default function Counter() {
 
 				<p className="text-xs text-amber-100/70">
 					{isListening ? "جاري الاستماع..." : "متوقف"}
-				</p>
-				<div className="flex items-center justify-between gap-2 rounded-xl border border-amber-100/10 bg-black/15 px-3 py-2">
-					<p className="text-xs text-amber-100/80">سرعة الذكر</p>
-					<div className="flex gap-1">
-						{PACE_OPTIONS.map((option) => (
-							<button
-								key={option.value}
-								type="button"
-								onClick={() => setSpeechPace(option.value)}
-								className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-									speechPace === option.value
-										? "bg-gradient-to-r from-amber-400 to-yellow-300 text-stone-900"
-										: "border border-amber-100/20 bg-white/[0.05] text-amber-50 hover:bg-white/15"
-								}`}
-							>
-								{option.label}
-							</button>
-						))}
-					</div>
-				</div>
-				<p className="text-[11px] text-amber-100/60">
-					فلترة التكرار: {PACE_SETTINGS[speechPace].duplicateMs}ms • أقل فاصل: {PACE_SETTINGS[speechPace].minGapMs}ms
 				</p>
 				{heardText ? (
 					<p className="rounded-xl border border-amber-100/10 bg-black/20 px-3 py-2 text-xs leading-6 text-amber-50/85">
