@@ -249,7 +249,7 @@ export default function Counter() {
 	}
 
 	return (
-		<section className="w-full max-w-md rounded-3xl border border-amber-100/20 bg-stone-950/45 p-6 text-stone-100 shadow-2xl shadow-black/25 backdrop-blur-xl">
+		<section className="w-full  max-w-md rounded-3xl border border-amber-100/20 bg-stone-950/45 p-6 text-stone-100 shadow-2xl shadow-black/25 backdrop-blur-xl">
 			<div className="mb-5 flex items-center justify-between">
 				<h2 className="text-xl font-semibold text-amber-100">AutoDhikr</h2>
 				<button
