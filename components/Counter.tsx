@@ -24,6 +24,7 @@ function normalizeText(value: string) {
 		.toLowerCase()
 		.normalize("NFKC")
 		.replace(/[أإآٱ]/g, "ا")
+		.replace(/[هة]/g, "ه")
 		.replace(/[\u064B-\u065F\u0670]/g, "")
 		.replace(/[^\p{L}\p{N}\s]/gu, " ")
 		.replace(/\s+/g, " ")
